@@ -482,6 +482,10 @@ impl SshService {
     }
 
     pub fn stop_forward(&self, id: &str) {
+        // Release the system proxy here, synchronously. The forward task may be
+        // aborted before it observes its shutdown signal, so relying on the
+        // task for cleanup loses the proxy state.
+        self.maybe_clear_system_proxy(id);
         let runtime = self.inner.state.lock().unwrap().forwards.remove(id);
         if let Some(mut runtime) = runtime {
             if let Some(shutdown) = runtime.shutdown.take() {
@@ -551,13 +555,25 @@ impl SshService {
     fn start_forward_inner(&self, rule: SshForwardRule) -> Result<(), String> {
         let id = rule.id.clone();
         let result = self.start_forward_inner_impl(rule);
-        if let Err(error) = &result {
-            self.inner
-                .state
-                .lock()
-                .unwrap()
-                .failed
-                .insert(id, error.clone());
+        match &result {
+            Ok(()) => {
+                // Record ownership so stopping / deleting / quitting can undo
+                // the system proxy. Best effort: the tunnel stays up even if
+                // networksetup fails (e.g. missing admin rights).
+                if let Err(error) = self.maybe_apply_system_proxy(&id) {
+                    if let Some(runtime) = self.inner.state.lock().unwrap().forwards.get(&id) {
+                        runtime.state.lock().unwrap().error = error;
+                    }
+                }
+            }
+            Err(error) => {
+                self.inner
+                    .state
+                    .lock()
+                    .unwrap()
+                    .failed
+                    .insert(id.clone(), error.clone());
+            }
         }
         result
     }
@@ -958,21 +974,12 @@ async fn forward_loop(
             state.error.clear();
             state.started_at = now_rfc3339();
         }
-        if rule.system_proxy {
-            if let Err(error) = apply_system_proxy(
-                state.lock().unwrap().bound_port,
-                &rule.mode,
-            ) {
-                state.lock().unwrap().error = error;
-            }
-        }
-
+        // System proxy setup/teardown is owned by SshService (see
+        // start_forward_inner / stop_forward) and happens synchronously so it
+        // cannot be lost when this task is aborted.
         loop {
             tokio::select! {
                 _ = &mut shutdown => {
-                    if rule.system_proxy {
-                        clear_system_proxy();
-                    }
                     return;
                 }
                 failure = fail_rx.recv() => {
@@ -1008,9 +1015,6 @@ async fn forward_loop(
         }
         tokio::select! {
             _ = &mut shutdown => {
-                if rule.system_proxy {
-                    clear_system_proxy();
-                }
                 return;
             }
             _ = tokio::time::sleep(Duration::from_secs(2)) => {}
@@ -1339,7 +1343,15 @@ fn collect_keys(dir: &Path, source: &str, in_use: &HashSet<String>, out: &mut Ve
 // macOS system proxy
 // ---------------------------------------------------------------------------
 
+/// Tests set this to avoid touching the real macOS network configuration.
+fn system_proxy_disabled() -> bool {
+    std::env::var_os("DEVBOX_SKIP_SYSTEM_PROXY").is_some()
+}
+
 fn apply_system_proxy(port: u16, mode: &str) -> Result<(), String> {
+    if system_proxy_disabled() {
+        return Ok(());
+    }
     if port == 0 {
         return Err("本地端口尚未就绪".into());
     }
@@ -1365,6 +1377,9 @@ fn apply_system_proxy(port: u16, mode: &str) -> Result<(), String> {
 }
 
 fn clear_system_proxy() {
+    if system_proxy_disabled() {
+        return;
+    }
     #[cfg(target_os = "macos")]
     {
         for service in network_services() {
@@ -1469,6 +1484,51 @@ mod tests {
         assert_eq!(
             rewritten,
             "GET /path?q=1 HTTP/1.1\r\nHost: example.com\r\nUser-Agent: test\r\nConnection: close\r\n\r\n"
+        );
+    }
+
+    #[test]
+    fn stopping_a_forward_releases_system_proxy() {
+        // SAFETY: test-only switch; avoids touching real macOS network settings.
+        unsafe { std::env::set_var("DEVBOX_SKIP_SYSTEM_PROXY", "1") };
+        let dir = tempfile::tempdir().unwrap();
+        let profiles_path = dir.path().join("profiles.json");
+        let forwards_path = dir.path().join("forwards.json");
+        std::fs::write(
+            &profiles_path,
+            r#"{"profiles":[{"id":"p","name":"t","host":"127.0.0.1","port":22,"username":"u","authType":"password","privateKeyPath":"","strictHostKeyChecking":false}]}"#,
+        )
+        .unwrap();
+        std::fs::write(&forwards_path, r#"{"forwards":[]}"#).unwrap();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let ssh = SshService::new_with_paths(
+            runtime.handle().clone(),
+            profiles_path,
+            forwards_path,
+        );
+
+        let status = ssh
+            .start_forward(SshForwardRule {
+                profile_id: "p".into(),
+                local_host: "127.0.0.1".into(),
+                local_port: 0,
+                mode: "socks".into(),
+                system_proxy: true,
+                ..Default::default()
+            })
+            .unwrap();
+        assert!(
+            ssh.inner.state.lock().unwrap().system_proxy_owner.is_some(),
+            "starting a system-proxy forward must record ownership",
+        );
+
+        ssh.stop_forward(&status.id);
+        assert!(
+            ssh.inner.state.lock().unwrap().system_proxy_owner.is_none(),
+            "stopping a forward must release the system proxy",
         );
     }
 
