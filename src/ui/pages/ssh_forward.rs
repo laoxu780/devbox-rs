@@ -613,7 +613,7 @@ impl DevBoxApp {
                                 "HTTP 代理监听本地端口，支持 CONNECT 隧道与普通 HTTP 转发"
                             }),
                     );
-                if mode == "http" {
+                if mode == "socks" || mode == "http" {
                     body = body.child(
                         checkbox_row(&theme, "开启转发时自动设置为系统代理", system_proxy)
                             .id("ssh_forward_system_proxy")

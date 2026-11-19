@@ -97,6 +97,16 @@ fn proxy_modes_can_be_selected_and_created(cx: &mut TestAppContext) {
             "{mode} mode did not fill in the default port",
         );
 
+        // Both proxy modes offer the "set as system proxy" checkbox.
+        let checkbox = cx
+            .debug_bounds("ssh_forward_system_proxy")
+            .unwrap_or_else(|| panic!("{mode} mode has no system proxy checkbox"));
+        cx.simulate_click(checkbox.center(), Modifiers::none());
+        assert!(
+            cx.update(|_, app| view.read(app).pages.ssh_forward.form.system_proxy),
+            "system proxy checkbox did not toggle in {mode} mode",
+        );
+
         // Create the rule. The SSH connection will fail (no server on port 1),
         // but the rule must still be persisted with the chosen mode.
         let submit = cx
@@ -113,6 +123,7 @@ fn proxy_modes_can_be_selected_and_created(cx: &mut TestAppContext) {
         let rule = &rules[index];
         assert_eq!(rule["mode"], mode);
         assert_eq!(rule["localPort"], expected_port);
+        assert_eq!(rule["systemProxy"], true);
 
         // Reset the form state for the next iteration by closing any leftover
         // rule from the list view (the next click toggles the add button).
