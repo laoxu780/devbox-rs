@@ -128,13 +128,13 @@ const LINUX_GUIDE: &[GuideStep] = &[
         command: Some("ssh-keygen -t ed25519 -C \"devbox\""),
     },
     GuideStep {
-        title: "把公钥安装到服务器",
-        detail: "执行时会要求输入一次服务器密码；完成后即可免密登录。",
+        title: "安装公钥 · 方式 A（推荐）",
+        detail: "用 ssh-copy-id 自动安装，执行时会要求输入一次服务器密码。完成即可免密登录，无需再做步骤 3。",
         command: Some("ssh-copy-id -i ~/.ssh/id_ed25519.pub 用户名@服务器地址"),
     },
     GuideStep {
-        title: "手动安装（没有 ssh-copy-id 时）",
-        detail: "把 .pub 文件内容追加到服务器对应用户的 ~/.ssh/authorized_keys，一行一个公钥，并确保权限正确。",
+        title: "安装公钥 · 方式 B（备选）",
+        detail: "与步骤 2 二选一：本机没有 ssh-copy-id 时才做这一步。把 .pub 内容追加到服务器对应用户的 ~/.ssh/authorized_keys，一行一个公钥，并确保权限正确。",
         command: Some("echo 'ssh-ed25519 AAAA...' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"),
     },
     GuideStep {
@@ -529,6 +529,18 @@ impl DevBoxApp {
                 ))
                 .child(os_switch);
             for (index, step) in steps.iter().enumerate() {
+                if guide_os == "linux" && index == 1 {
+                    guide = guide.child(
+                        div()
+                            .pl(px(27.0))
+                            .pt(px(6.0))
+                            .pb(px(2.0))
+                            .text_size(px(10.0))
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .text_color(theme.accent())
+                            .child("▼ 步骤 2 与步骤 3 二选一，完成其中任意一个即可"),
+                    );
+                }
                 guide = guide.child(render_guide_step(&theme, step, index, &guide_seq, cx));
             }
             page = page.child(guide.debug_selector(|| "ssh_credentials_guide".into()));
