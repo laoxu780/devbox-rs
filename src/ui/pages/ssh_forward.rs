@@ -154,10 +154,8 @@ impl DevBoxApp {
                             ButtonKind::Primary,
                         )
                         .debug_selector(|| "ssh_forward_add_button".into())
-                        .id("ssh_forward_auto_1")
-
-                        .id("ssh_forward_auto2_1")
-.on_click(cx.listener(|app, _: &ClickEvent, _, cx| {
+                        .id("ssh_forward_add_button")
+                        .on_click(cx.listener(|app, _: &ClickEvent, _, cx| {
                             if app.pages.ssh_forward.show_form {
                                 app.pages.ssh_forward.show_form = false;
                             } else {
@@ -425,8 +423,15 @@ impl DevBoxApp {
                 ("socks", "SOCKS5 代理"),
                 ("http", "HTTP 代理"),
             ] {
+                let selector: &'static str = match value {
+                    "socks" => "ssh_forward_mode_socks",
+                    "http" => "ssh_forward_mode_http",
+                    _ => "ssh_forward_mode_local",
+                };
                 mode_switch = mode_switch.child(
-                    chip(&theme, label, mode == value).id("ssh_forward_auto2_3")
+                    chip(&theme, label, mode == value)
+                        .id(selector)
+                        .debug_selector(move || selector.into())
 .on_click(cx.listener(
                         move |app, _: &ClickEvent, _, cx| {
                             let form = &mut app.pages.ssh_forward.form;
@@ -611,10 +616,9 @@ impl DevBoxApp {
                 if mode == "http" {
                     body = body.child(
                         checkbox_row(&theme, "开启转发时自动设置为系统代理", system_proxy)
-                            .id("ssh_forward_auto_2")
-
-                            .id("ssh_forward_auto2_5")
-.on_click(cx.listener(|app, _: &ClickEvent, _, cx| {
+                            .id("ssh_forward_system_proxy")
+                            .debug_selector(|| "ssh_forward_system_proxy".into())
+                            .on_click(cx.listener(|app, _: &ClickEvent, _, cx| {
                                 app.pages.ssh_forward.form.system_proxy =
                                     !app.pages.ssh_forward.form.system_proxy;
                                 cx.notify();
@@ -643,10 +647,9 @@ impl DevBoxApp {
                             if editing { "保存修改" } else { "创建并开启" },
                             ButtonKind::Primary,
                         )
-                        .id("ssh_forward_auto_3")
-
-                        .id("ssh_forward_auto2_7")
-.on_click(cx.listener(|app, _: &ClickEvent, _, cx| {
+                        .id("ssh_forward_submit")
+                        .debug_selector(|| "ssh_forward_submit".into())
+                        .on_click(cx.listener(|app, _: &ClickEvent, _, cx| {
                             let form = &app.pages.ssh_forward.form;
                             let local_port = form
                                 .local_port

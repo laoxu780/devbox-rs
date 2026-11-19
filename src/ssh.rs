@@ -1182,21 +1182,35 @@ async fn handle_http_proxy(
     };
     let channel = open_channel(&session, &host, port).await?;
     let mut channel_stream = channel.into_stream();
-    let mut rewritten = format!("{method} {path} {version}\r\n");
-    for line in lines {
-        if line.to_ascii_lowercase().starts_with("connection:") {
-            continue;
-        }
-        rewritten.push_str(line);
-        rewritten.push_str("\r\n");
-    }
-    rewritten.push_str("Connection: close\r\n\r\n");
+    let rewritten = rewrite_http_request_head(lines, method, &path, version);
     channel_stream.write_all(rewritten.as_bytes()).await?;
     if !leftover.is_empty() {
         channel_stream.write_all(&leftover).await?;
     }
     tokio::io::copy_bidirectional(&mut stream, &mut channel_stream).await?;
     Ok(())
+}
+
+/// Rebuild an HTTP request line for a proxied request. `lines` is the header
+/// iterator *after* the request line has been consumed; splitting a head that
+/// ends in `\r\n\r\n` yields trailing empty strings, which must be skipped or
+/// the blank line would terminate the headers before `Connection: close`.
+fn rewrite_http_request_head<'a>(
+    lines: impl Iterator<Item = &'a str>,
+    method: &str,
+    path: &str,
+    version: &str,
+) -> String {
+    let mut rewritten = format!("{method} {path} {version}\r\n");
+    for line in lines {
+        if line.is_empty() || line.to_ascii_lowercase().starts_with("connection:") {
+            continue;
+        }
+        rewritten.push_str(line);
+        rewritten.push_str("\r\n");
+    }
+    rewritten.push_str("Connection: close\r\n\r\n");
+    rewritten
 }
 
 fn split_host_port(value: &str) -> Option<(String, u16)> {
@@ -1440,6 +1454,22 @@ mod tests {
         };
         validate_forward(&mut rule).unwrap();
         assert!(rule.name.contains("SOCKS"));
+    }
+
+    #[test]
+    fn rewrites_http_request_head_without_extra_blank_lines() {
+        let head = "GET http://example.com/path?q=1 HTTP/1.1\r\nHost: example.com\r\nUser-Agent: test\r\nConnection: keep-alive\r\n\r\n";
+        let mut lines = head.split("\r\n");
+        let request_line = lines.next().unwrap();
+        let mut parts = request_line.split_whitespace();
+        let method = parts.next().unwrap();
+        let _target = parts.next().unwrap();
+        let version = parts.next().unwrap();
+        let rewritten = rewrite_http_request_head(lines, method, "/path?q=1", version);
+        assert_eq!(
+            rewritten,
+            "GET /path?q=1 HTTP/1.1\r\nHost: example.com\r\nUser-Agent: test\r\nConnection: close\r\n\r\n"
+        );
     }
 
     #[test]
