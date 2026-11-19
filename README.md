@@ -2,7 +2,7 @@
 
 ![Rust](https://img.shields.io/badge/Rust-1.88%2B-orange)
 ![Platform](https://img.shields.io/badge/Platform-macOS-blue)
-![License](https://img.shields.io/badge/License--2.0-blue)
+![License](https://img.shields.io/badge/License-Apache--2.0-blue)
 
 > A local developer toolbox, rewritten in Rust with GPUI — daily utilities, a runtime-switchable local reverse proxy, and SSH key / credential / port-forward management.
 
