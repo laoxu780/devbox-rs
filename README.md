@@ -42,7 +42,8 @@ DevBox 是一个本地开发工具箱：日常小工具 + **可运行时切换�
 ## 快速开始
 
 ```bash
-git clone https://github.com/<你的用户名>/devbox-rs.git
+git clone git@github.com:laoxu780/devbox-rs.git
+# 或者：git clone https://github.com/laoxu780/devbox-rs.git
 cd devbox-rs
 
 cargo run                    # 调试运行（首次会编译大量依赖）
