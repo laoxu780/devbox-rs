@@ -101,6 +101,41 @@ fn forward_form_is_a_modal(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn public_key_guide_toggles_and_switches_os(cx: &mut TestAppContext) {
+    let config = init_config_dir();
+    write_json(&config.join("ssh_profiles.json"), &serde_json::json!({"profiles":[]}));
+    write_json(&config.join("ssh_forwards.json"), &serde_json::json!({"forwards":[]}));
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let services = Services {
+        proxy: ProxyService::new_with_path(runtime.handle().clone(), config.join("api.json")),
+        ssh: SshService::new(runtime.handle().clone()),
+        hosts: devbox::hosts::HostsService::with_path(config.join("hosts.json")),
+    };
+    let (view, mut cx) = cx.add_window_view(|_, cx| DevBoxApp::new(services, cx));
+    goto(&view, &mut cx, ToolId::SshCredentials);
+
+    assert!(cx.debug_bounds("ssh_credentials_guide").is_none());
+    let toggle = cx
+        .debug_bounds("ssh_credentials_guide_toggle")
+        .expect("guide toggle");
+    cx.simulate_click(toggle.center(), Modifiers::none());
+    assert!(cx.update(|_, app| view.read(app).pages.ssh_credentials.show_guide));
+    assert!(cx.debug_bounds("ssh_credentials_guide").is_some());
+
+    let windows = cx
+        .debug_bounds("ssh_credentials_guide_windows")
+        .expect("Windows tab");
+    cx.simulate_click(windows.center(), Modifiers::none());
+    assert_eq!(
+        cx.update(|_, app| view.read(app).pages.ssh_credentials.guide_os.clone()),
+        "windows",
+    );
+}
+
+#[gpui::test]
 fn api_proxy_form_is_a_modal(cx: &mut TestAppContext) {
     let config = init_config_dir();
     write_json(&config.join("api_proxy.json"), &serde_json::json!({"routes":[]}));

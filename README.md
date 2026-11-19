@@ -106,6 +106,7 @@ curl -X POST http://127.0.0.1:8787/__devbox__/switch -d '{"target":"prod"}'
 
 ### SSH
 
+- **公钥配置指南**：SSH 凭证页面右上角「公钥配置指南」内置 Linux / Windows 服务器的操作步骤（`ssh-keygen`、`ssh-copy-id`、OpenSSH Server 安装、防火墙、管理员账户的 `administrators_authorized_keys` 与权限修复等），命令可一键复制。
 - **密钥**：`~/.ssh` 中的密钥只读展示；DevBox 生成的密钥保存在应用数据目录的 `keys/`。
 - **凭证**：密码 / 私钥路径 / 口令保存在本机配置文件（权限 `0600`）。私钥路径支持 `~/` 展开。
 - **转发**：

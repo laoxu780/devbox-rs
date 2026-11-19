@@ -3,6 +3,7 @@ use std::process::Command;
 use gpui::{ClickEvent, Context, Entity, IntoElement, MouseDownEvent, div, prelude::*, px};
 
 use crate::ssh::{SshProfile, SshProfileView};
+use crate::theme::Theme;
 use crate::ui::app::{CYAN, ConfirmAction, ConfirmState, DevBoxApp};
 use crate::ui::pages::{ footer_line, panel_actions, segmented, text_field, tool_page, chip };
 use crate::ui::text_input::TextInput;
@@ -74,6 +75,8 @@ impl ProfileForm {
 pub struct SshCredentialsState {
     pub form: ProfileForm,
     pub show_form: bool,
+    pub show_guide: bool,
+    pub guide_os: String,
     pub notice: String,
     pub notice_error: bool,
 }
@@ -83,6 +86,8 @@ impl SshCredentialsState {
         Self {
             form: ProfileForm::new(cx),
             show_form: false,
+            show_guide: false,
+            guide_os: "linux".into(),
             notice: String::new(),
             notice_error: false,
         }
@@ -110,6 +115,143 @@ fn pick_key_file() -> Result<String, String> {
     }
 }
 
+struct GuideStep {
+    title: &'static str,
+    detail: &'static str,
+    command: Option<&'static str>,
+}
+
+const LINUX_GUIDE: &[GuideStep] = &[
+    GuideStep {
+        title: "本机生成密钥（已有可跳过）",
+        detail: "一路回车即可。生成后得到私钥 id_ed25519 和公钥 id_ed25519.pub。",
+        command: Some("ssh-keygen -t ed25519 -C \"devbox\""),
+    },
+    GuideStep {
+        title: "把公钥安装到服务器",
+        detail: "执行时会要求输入一次服务器密码；完成后即可免密登录。",
+        command: Some("ssh-copy-id -i ~/.ssh/id_ed25519.pub 用户名@服务器地址"),
+    },
+    GuideStep {
+        title: "手动安装（没有 ssh-copy-id 时）",
+        detail: "把 .pub 文件内容追加到服务器对应用户的 ~/.ssh/authorized_keys，一行一个公钥，并确保权限正确。",
+        command: Some("echo 'ssh-ed25519 AAAA...' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"),
+    },
+    GuideStep {
+        title: "回到 DevBox 填写凭证",
+        detail: "认证方式选「私钥文件」，私钥路径填本机私钥 ~/.ssh/id_ed25519（不是 .pub），填好用户名 / 地址 / 端口后点「测试」。",
+        command: None,
+    },
+];
+
+const WINDOWS_GUIDE: &[GuideStep] = &[
+    GuideStep {
+        title: "安装 OpenSSH Server",
+        detail: "以管理员身份打开 PowerShell 执行；已安装可跳过。",
+        command: Some("Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0"),
+    },
+    GuideStep {
+        title: "启动服务并设置开机自启",
+        detail: "首次配置完成后再执行 Restart-Service sshd 使配置生效。",
+        command: Some("Set-Service -Name sshd -StartupType Automatic; Start-Service sshd"),
+    },
+    GuideStep {
+        title: "放行防火墙 22 端口",
+        detail: "允许外部机器连接 Windows 的 SSH 服务。",
+        command: Some("New-NetFirewallRule -Name sshd -DisplayName 'OpenSSH Server (sshd)' -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22"),
+    },
+    GuideStep {
+        title: "安装公钥（普通账户）",
+        detail: "把 .pub 内容写入 C:\\Users\\<用户名>\\.ssh\\authorized_keys，一行一个公钥。",
+        command: Some("mkdir $env:USERPROFILE\\.ssh; notepad $env:USERPROFILE\\.ssh\\authorized_keys"),
+    },
+    GuideStep {
+        title: "安装公钥（管理员账户）",
+        detail: "管理员账户默认读取 administrators_authorized_keys，不是用户目录下的 authorized_keys。",
+        command: Some("notepad C:\\ProgramData\\ssh\\administrators_authorized_keys"),
+    },
+    GuideStep {
+        title: "修正权限并重启服务",
+        detail: "该文件只允许 SYSTEM 与 Administrators 访问，否则 sshd 会拒绝使用该公钥。",
+        command: Some("icacls C:\\ProgramData\\ssh\\administrators_authorized_keys /inheritance:r /grant SYSTEM:F /grant *S-1-5-32-544:F; Restart-Service sshd"),
+    },
+    GuideStep {
+        title: "回到 DevBox 填写凭证",
+        detail: "确认 sshd_config 中 PubkeyAuthentication yes。认证方式选「私钥文件」，用户名填 Windows 账户名（域账户用 DOMAIN\\user），点「测试」。",
+        command: None,
+    },
+];
+
+fn render_guide_step(
+    theme: &Theme,
+    step: &GuideStep,
+    index: usize,
+    seq: &std::cell::Cell<usize>,
+    cx: &mut Context<DevBoxApp>,
+) -> impl IntoElement {
+    let mut body = div()
+        .flex()
+        .flex_col()
+        .gap(px(4.0))
+        .child(
+            div()
+                .text_size(px(11.5))
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .text_color(theme.text())
+                .child(format!("{}. {}", index + 1, step.title)),
+        )
+        .child(
+            div()
+                .text_size(px(10.5))
+                .text_color(theme.muted())
+                .child(step.detail),
+        );
+    if let Some(command) = step.command {
+        let command_text = command.to_string();
+        body = body.child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(8.0))
+                .p(px(7.0))
+                .bg(theme.inset())
+                .border_1()
+                .border_color(theme.line())
+                .rounded(px(6.0))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .font_family("Menlo")
+                        .text_size(px(10.0))
+                        .text_color(theme.text())
+                        .child(command_text.clone()),
+                )
+                .child(
+                    button(theme, "复制", ButtonKind::Ghost)
+                        .id(crate::ui::loop_id("ssh_credentials_guide_copy", seq))
+                        .on_click(cx.listener(move |app, _: &ClickEvent, _, cx| {
+                            app.copy(command_text.clone(), cx);
+                        })),
+                ),
+        );
+    }
+    div()
+        .flex()
+        .gap(px(9.0))
+        .py(px(7.0))
+        .border_b_1()
+        .border_color(theme.line())
+        .child(
+            div()
+                .w(px(18.0))
+                .text_size(px(10.0))
+                .text_color(theme.faint())
+                .child(format!("{:02}", index + 1)),
+        )
+        .child(body)
+}
+
 impl DevBoxApp {
     pub fn render_ssh_credentials(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
 
@@ -117,6 +259,19 @@ impl DevBoxApp {
         let profiles = self.services.ssh.list_profiles();
         let notice = self.pages.ssh_credentials.notice.clone();
         let notice_error = self.pages.ssh_credentials.notice_error;
+        let show_guide = self.pages.ssh_credentials.show_guide;
+
+        let guide_toggle = button(
+            &theme,
+            if show_guide { "收起指南" } else { "公钥配置指南" },
+            ButtonKind::Ghost,
+        )
+        .id("ssh_credentials_guide_toggle")
+        .debug_selector(|| "ssh_credentials_guide_toggle".into())
+        .on_click(cx.listener(|app, _: &ClickEvent, _, cx| {
+            app.pages.ssh_credentials.show_guide = !app.pages.ssh_credentials.show_guide;
+            cx.notify();
+        }));
 
         let mut list = div().flex().flex_col().gap(px(6.0));
         if profiles.is_empty() {
@@ -309,7 +464,9 @@ impl DevBoxApp {
                     "保存服务器连接配置与登录密钥",
                 ))
                 .child(
-                    panel_actions(&theme).child(
+                    panel_actions(&theme)
+                        .child(guide_toggle)
+                        .child(
                         button(
                             &theme,
                             if !self.pages.ssh_credentials.form.id.is_empty() {
@@ -320,10 +477,8 @@ impl DevBoxApp {
                             ButtonKind::Primary,
                         )
                         .debug_selector(|| "ssh_credentials_add_button".into())
-                        .id("ssh_credentials_auto_1")
-
-                        .id("ssh_credentials_auto2_4")
-.on_click(cx.listener(|app, _: &ClickEvent, _, cx| {
+                        .id("ssh_credentials_add_button")
+                        .on_click(cx.listener(|app, _: &ClickEvent, _, cx| {
                             if app.pages.ssh_credentials.show_form {
                                 app.pages.ssh_credentials.show_form = false;
                             } else {
@@ -342,6 +497,42 @@ impl DevBoxApp {
         );
 
         page = page.child(list);
+
+        if show_guide {
+            let guide_seq = std::cell::Cell::new(0);
+            let guide_os = self.pages.ssh_credentials.guide_os.clone();
+            let mut os_switch = segmented(&theme);
+            for (value, label, selector) in [
+                ("linux", "Linux 服务器", "ssh_credentials_guide_linux"),
+                ("windows", "Windows 服务器", "ssh_credentials_guide_windows"),
+            ] {
+                os_switch = os_switch.child(
+                    chip(&theme, label, guide_os == value)
+                        .id(selector)
+                        .debug_selector(move || selector.into())
+                        .on_click(cx.listener(move |app, _: &ClickEvent, _, cx| {
+                            app.pages.ssh_credentials.guide_os = value.to_string();
+                            cx.notify();
+                        })),
+                );
+            }
+            let steps = if guide_os == "windows" {
+                WINDOWS_GUIDE
+            } else {
+                LINUX_GUIDE
+            };
+            let mut guide = card(&theme)
+                .child(section_header(
+                    &theme,
+                    "公钥配置指南",
+                    "在服务器装好公钥后，回到本页选择「私钥文件」认证并点「测试」",
+                ))
+                .child(os_switch);
+            for (index, step) in steps.iter().enumerate() {
+                guide = guide.child(render_guide_step(&theme, step, index, &guide_seq, cx));
+            }
+            page = page.child(guide.debug_selector(|| "ssh_credentials_guide".into()));
+        }
 
         page.child(
             footer_line(&theme)
