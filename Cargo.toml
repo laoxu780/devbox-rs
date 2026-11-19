@@ -1,0 +1,55 @@
+[package]
+name = "devbox"
+version = "0.1.0"
+edition = "2024"
+description = "DevBox 的 Rust + GPUI 重写版：本地开发工具箱"
+
+[dependencies]
+anyhow = "1.0.104"
+barcoders = "2"
+base64 = "0.23.1"
+bytes = "1.12.1"
+chrono = "0.4.45"
+dirs = "7.0.0"
+futures-util = "0.3.34"
+gpui = { version = "0.2.2", default-features = false, features = ["font-kit", "runtime_shaders"] }
+http = "1.5.0"
+http-body-util = "0.1.5"
+hyper = { version = "1.12.0", features = ["http1", "http2", "server", "client"] }
+hyper-util = { version = "0.1.21", features = ["tokio", "server", "http1", "http2"] }
+image = "=0.25.8"
+md-5 = "0.11.0"
+percent-encoding = "2.3.2"
+qrcode = "0.14.1"
+rand = "0.10.4"
+regex = "1.13.1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "http2", "json"] }
+rqrr = "0.11.0"
+russh = "0.65.2"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+rxing = "0.9.4"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha1 = "0.11.0"
+sha2 = "0.11.1"
+similar = "3.2.1"
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "io-util", "fs", "signal"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12", "logging"] }
+unicode-segmentation = "1.13.3"
+url = "2.5.8"
+uuid = { version = "1.29.3", features = ["v4"] }
+webpki-roots = "1.0"
+
+[target.'cfg(windows)'.dependencies]
+gpui = { version = "0.2.2", default-features = false, features = ["font-kit", "runtime_shaders", "windows-manifest"] }
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
+
+[dev-dependencies]
+tempfile = "3"
+gpui = { version = "0.2.2", default-features = false, features = ["font-kit", "runtime_shaders", "test-support"] }
+
+[profile.dev.package."*"]
+opt-level = 2

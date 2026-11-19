@@ -1,0 +1,19 @@
+# Rust build artifacts
+/target/
+
+# Prebuilt apps / release output
+/dist/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor / temp backups
+*.swp
+*.swo
+*~
+Cargo.tomlQwoKb5
+
+# Logs
+*.log
