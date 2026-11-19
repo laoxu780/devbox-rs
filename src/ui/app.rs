@@ -29,6 +29,7 @@ gpui::actions!(
         ToolUuid,
         ToolHash,
         ToolHosts,
+        ToolPorts,
     ]
 );
 
@@ -48,6 +49,7 @@ pub enum ToolId {
     SshForward,
     ApiProxy,
     Hosts,
+    Ports,
 }
 
 impl ToolId {
@@ -67,6 +69,7 @@ impl ToolId {
             Self::SshForward => "ssh-forward",
             Self::ApiProxy => "api-proxy",
             Self::Hosts => "hosts",
+            Self::Ports => "ports",
         }
     }
 }
@@ -215,6 +218,15 @@ pub const TOOLS: &[ToolMeta] = &[
         glyph: "H",
         accent: LIME,
         shortcut: Some("⌘6"),
+    },
+    ToolMeta {
+        id: ToolId::Ports,
+        name: "端口检测",
+        description: "查看监听端口，检测端口是否可用",
+        category: "网络工具",
+        glyph: "P",
+        accent: ORANGE,
+        shortcut: Some("⌘7"),
     },
 ];
 
@@ -1169,6 +1181,7 @@ impl DevBoxApp {
             ToolId::SshForward => self.render_ssh_forward(cx).into_any_element(),
             ToolId::ApiProxy => self.render_api_proxy(cx).into_any_element(),
             ToolId::Hosts => self.render_hosts(cx).into_any_element(),
+            ToolId::Ports => self.render_ports(cx).into_any_element(),
         }
     }
 }
@@ -1242,6 +1255,9 @@ impl Render for DevBoxApp {
             }))
             .on_action(cx.listener(|app, _: &ToolHosts, _, cx| {
                 app.on_tool_shortcut(ToolId::Hosts, cx)
+            }))
+            .on_action(cx.listener(|app, _: &ToolPorts, _, cx| {
+                app.on_tool_shortcut(ToolId::Ports, cx)
             }))
             .on_action(cx.listener(|_: &mut DevBoxApp, _: &Quit, _, cx| cx.quit()))
             .on_key_down(cx.listener(Self::on_key_down))

@@ -1,4 +1,5 @@
 pub mod hosts;
+pub mod ports;
 pub mod proxy;
 #[cfg(target_os = "macos")]
 pub mod system;

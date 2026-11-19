@@ -9,7 +9,7 @@ use devbox::proxy::ProxyService;
 use devbox::ssh::SshService;
 use devbox::system::{AppRuntime, install_alt_space_hotkey, open_main_window, restore_window};
 use devbox::ui::app::{
-    Dismiss, OpenPalette, Quit, Services, ToolHosts, ToolBase64, ToolHash, ToolJson, ToolTimestamp, ToolUuid,
+    Dismiss, OpenPalette, Quit, Services, ToolHosts, ToolBase64, ToolHash, ToolJson, ToolPorts, ToolTimestamp, ToolUuid,
 };
 use devbox::ui::text_input;
 
@@ -49,6 +49,7 @@ fn main() {
             KeyBinding::new("cmd-4", ToolUuid, None),
             KeyBinding::new("cmd-5", ToolHash, None),
             KeyBinding::new("cmd-6", ToolHosts, None),
+            KeyBinding::new("cmd-7", ToolPorts, None),
             KeyBinding::new("backspace", text_input::Backspace, Some("TextInput")),
             KeyBinding::new("delete", text_input::Delete, Some("TextInput")),
             KeyBinding::new("left", text_input::Left, Some("TextInput")),

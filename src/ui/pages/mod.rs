@@ -6,6 +6,7 @@ pub mod diff;
 pub mod hash;
 pub mod hosts;
 pub mod json;
+pub mod ports;
 pub mod regex;
 pub mod ssh_credentials;
 pub mod ssh_forward;
@@ -28,6 +29,7 @@ pub use diff::DiffState;
 pub use hash::HashState;
 pub use hosts::HostsState;
 pub use json::JsonState;
+pub use ports::PortState;
 pub use regex::RegexState;
 pub use ssh_credentials::{ProfileForm, SshCredentialsState};
 pub use ssh_forward::{ForwardForm, SshForwardState};
@@ -50,6 +52,7 @@ pub struct Pages {
     pub ssh_forward: SshForwardState,
     pub api_proxy: ApiProxyState,
     pub hosts: HostsState,
+    pub ports: PortState,
 }
 
 impl Pages {
@@ -69,6 +72,7 @@ impl Pages {
             ssh_forward: SshForwardState::new(cx),
             api_proxy: ApiProxyState::new(cx),
             hosts: HostsState::new(cx),
+            ports: PortState::new(cx),
         }
     }
 
@@ -102,6 +106,8 @@ impl Pages {
             self.api_proxy.form.strip.clone(),
             self.hosts.form.name.clone(),
             self.hosts.form.entries.clone(),
+            self.ports.query.clone(),
+            self.ports.filter.clone(),
         ];
         for target in &self.api_proxy.form.targets {
             inputs.push(target.name.clone());
