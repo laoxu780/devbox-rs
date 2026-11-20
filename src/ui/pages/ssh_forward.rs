@@ -420,14 +420,14 @@ impl DevBoxApp {
         let editing = !self.pages.ssh_forward.form.id.is_empty();
 
             let mut mode_switch = segmented(&theme);
-            for (value, label) in [
-                ("local", "端口转发"),
-                ("socks", "SOCKS5 代理"),
-                ("http", "HTTP 代理"),
-            ] {
+            for (value, label) in [("local", "端口转发"), ("socks", "SOCKS5 代理"), ("http", "HTTP 代理")]
+                .into_iter()
+            {
                 mode_switch = mode_switch.child(
-                    chip(&theme, label, mode == value).id("ssh_forward_auto2_3")
-.on_click(cx.listener(
+                    chip(&theme, label, mode == value)
+                        .id(crate::ui::loop_id("ssh_forward_mode", &seq))
+                        .debug_selector(move || format!("ssh_forward_mode_{value}").into())
+                        .on_click(cx.listener(
                         move |app, _: &ClickEvent, _, cx| {
                             let form = &mut app.pages.ssh_forward.form;
                             form.mode = value.to_string();
@@ -608,13 +608,12 @@ impl DevBoxApp {
                                 "HTTP 代理监听本地端口，支持 CONNECT 隧道与普通 HTTP 转发"
                             }),
                     );
-                if mode == "http" {
+                if mode != "local" {
                     body = body.child(
                         checkbox_row(&theme, "开启转发时自动设置为系统代理", system_proxy)
-                            .id("ssh_forward_auto_2")
-
                             .id("ssh_forward_auto2_5")
-.on_click(cx.listener(|app, _: &ClickEvent, _, cx| {
+                            .debug_selector(|| "ssh_forward_system_proxy".into())
+                            .on_click(cx.listener(|app, _: &ClickEvent, _, cx| {
                                 app.pages.ssh_forward.form.system_proxy =
                                     !app.pages.ssh_forward.form.system_proxy;
                                 cx.notify();
